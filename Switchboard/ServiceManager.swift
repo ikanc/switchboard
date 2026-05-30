@@ -182,4 +182,18 @@ class ServiceManager: ObservableObject {
             service.stop()
         }
     }
+
+    /// Start every long-running service (skips one-shots + already running).
+    func startAllServices() {
+        for service in services where !service.config.isOneShot && service.status != .running && service.status != .starting {
+            service.start()
+        }
+    }
+
+    /// Stop every long-running service.
+    func stopAllServices() {
+        for service in services where !service.config.isOneShot {
+            service.stop()
+        }
+    }
 }

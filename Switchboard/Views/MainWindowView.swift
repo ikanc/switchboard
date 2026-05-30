@@ -81,15 +81,45 @@ struct MainWindowView: View {
 
     // MARK: - Sidebar
 
+    // Long-running services, the project groups that contain them, and one-shots.
+    private var commandList: [ServiceProcess] {
+        manager.services.filter { $0.config.isOneShot }
+    }
+    private func servicesOnly(in group: String?) -> [ServiceProcess] {
+        manager.services(in: group).filter { !$0.config.isOneShot }
+    }
+    private var serviceGroups: [String?] {
+        manager.groupNames.filter { group in
+            manager.services(in: group).contains { !$0.config.isOneShot }
+        }
+    }
+    // Only show project sub-headers when at least one service is actually grouped.
+    private var hasNamedServiceGroups: Bool {
+        serviceGroups.contains { $0 != nil }
+    }
+
     private var sidebar: some View {
         List(selection: $selectedID) {
-            ForEach(manager.groupNames, id: \.self) { group in
-                Section {
-                    ForEach(manager.services(in: group)) { service in
+            // SERVICES — long-running processes, optionally sub-grouped by project.
+            Section {
+                ForEach(serviceGroups, id: \.self) { group in
+                    if hasNamedServiceGroups {
+                        projectSubheader(group)
+                    }
+                    ForEach(servicesOnly(in: group)) { service in
                         SidebarRow(service: service).tag(service.id)
                     }
-                } header: {
-                    groupHeader(group)
+                }
+            } header: {
+                servicesHeader
+            }
+
+            // COMMANDS — one-shot tasks.
+            if !commandList.isEmpty {
+                Section("Commands") {
+                    ForEach(commandList) { service in
+                        SidebarRow(service: service).tag(service.id)
+                    }
                 }
             }
         }
@@ -117,30 +147,57 @@ struct MainWindowView: View {
         .navigationTitle("Switchboard")
     }
 
-    private func groupHeader(_ group: String?) -> some View {
-        let running = manager.services(in: group).filter { $0.status == .running }.count
-        let total = manager.services(in: group).filter { !$0.config.isOneShot }.count
+    private var servicesHeader: some View {
+        let services = manager.services.filter { !$0.config.isOneShot }
+        let running = services.filter { $0.status == .running }.count
         return HStack(spacing: 6) {
-            Text(group ?? "Ungrouped")
-            Spacer()
-            if total > 0 {
-                Text("\(running)/\(total)")
+            Text("Services")
+            if !services.isEmpty {
+                Text("\(running)/\(services.count)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            Spacer()
             Button {
-                manager.startGroup(group)
+                manager.startAllServices()
             } label: { Image(systemName: "play.fill").font(.system(size: 9)) }
                 .buttonStyle(.plain)
-                .help("Start this group")
-                .disabled(total == 0 || running == total)
+                .help("Start all services")
+                .disabled(services.isEmpty || running == services.count)
             Button {
-                manager.stopGroup(group)
+                manager.stopAllServices()
             } label: { Image(systemName: "stop.fill").font(.system(size: 9)) }
                 .buttonStyle(.plain)
-                .help("Stop this group")
-                .disabled(manager.services(in: group).allSatisfy { $0.status != .running })
+                .help("Stop all services")
+                .disabled(running == 0)
         }
+    }
+
+    private func projectSubheader(_ group: String?) -> some View {
+        let inGroup = servicesOnly(in: group)
+        let running = inGroup.filter { $0.status == .running }.count
+        return HStack(spacing: 6) {
+            Text(group ?? "Ungrouped")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text("\(running)/\(inGroup.count)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            Button {
+                manager.startGroup(group)
+            } label: { Image(systemName: "play.fill").font(.system(size: 8)) }
+                .buttonStyle(.plain)
+                .help("Start this group")
+                .disabled(inGroup.isEmpty || running == inGroup.count)
+            Button {
+                manager.stopGroup(group)
+            } label: { Image(systemName: "stop.fill").font(.system(size: 8)) }
+                .buttonStyle(.plain)
+                .help("Stop this group")
+                .disabled(running == 0)
+        }
+        .padding(.top, 2)
     }
 
     private var emptyDetail: some View {
