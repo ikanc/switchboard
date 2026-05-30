@@ -1,5 +1,6 @@
-import Foundation
+import AppKit
 import Combine
+import Foundation
 
 enum ServiceStatus: String {
     case stopped = "Stopped"
@@ -105,7 +106,13 @@ class ServiceProcess: ObservableObject, Identifiable {
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
             """
-        proc.arguments = ["-c", "\(shellInit)\ncd '\(path)' && \(config.command)"]
+        // Per-service env vars, single-quoted so values with spaces/symbols are
+        // passed literally. Embedded single quotes are escaped the POSIX way.
+        let envExports = config.environment
+            .filter { !$0.key.trimmingCharacters(in: .whitespaces).isEmpty }
+            .map { "export \($0.key)='\($0.value.replacingOccurrences(of: "'", with: "'\\''"))'" }
+            .joined(separator: "\n")
+        proc.arguments = ["-c", "\(shellInit)\n\(envExports)\ncd '\(path)' && \(config.command)"]
         proc.currentDirectoryURL = URL(fileURLWithPath: path)
 
         let pipe = Pipe()
@@ -294,5 +301,32 @@ class ServiceProcess: ObservableObject, Identifiable {
             let startIndex = logs.index(logs.endIndex, offsetBy: -maxLogSize)
             logs = String(logs[startIndex...])
         }
+    }
+
+    // MARK: - Quick actions
+
+    /// The local URL this service serves on, if it declares a port.
+    var localURL: URL? {
+        guard let port = config.port, !config.isOneShot else { return nil }
+        return URL(string: "http://localhost:\(port)")
+    }
+
+    /// Open the served URL (localhost:<port>) in the default browser.
+    func openInBrowser() {
+        guard let url = localURL else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Reveal the working directory in Finder.
+    func openWorkingDirectory() {
+        NSWorkspace.shared.open(URL(fileURLWithPath: config.expandedPath))
+    }
+
+    /// Open a new Terminal window at the working directory.
+    func openInTerminal() {
+        let opener = Process()
+        opener.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        opener.arguments = ["-a", "Terminal", config.expandedPath]
+        try? opener.run()
     }
 }

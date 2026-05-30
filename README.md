@@ -2,7 +2,7 @@
 
 A tiny macOS menu-bar app that launches and manages the long-running processes you run all day — dev servers, tunnels, build watchers, AI relays, anything — from one place.
 
-It lives as a ⚡ bolt icon in the menu bar. Click it to see a list of services with live status, tail the last lines of logs, and start / stop / restart without hunting for a terminal tab.
+It lives as a ⚡ bolt icon in the menu bar. Click it for a quick dropdown — live status, tail logs, start / stop / restart — or open the **full window** for in-depth control: a project sidebar and a per-service detail pane with quick actions, environment variables, and a large live log view. (Like NordVPN: dropdown for quick actions, window for the deep stuff. Closing the window leaves every service running.)
 
 ## What it does
 
@@ -13,8 +13,14 @@ It lives as a ⚡ bolt icon in the menu bar. Click it to see a list of services 
 - **Shell env shim** — spawned processes are launched under `/bin/zsh -c` with Homebrew `shellenv` and NVM sourced, because GUI-launched apps on macOS don't inherit an interactive shell's `PATH` / Node version.
 - **Log tailing** — stdout and stderr are merged into a per-service ring buffer. Expand a row to see it live; copy or clear from the expanded view.
 - **One-time commands** — same config shape as a service, but runs once and exits. No auto-restart, no port watching. Useful for scripts, migrations, seeds, or anything you'd otherwise `cd` + run once.
+- **Projects / groups** — organize services into groups and start/stop a whole stack at once from the window sidebar.
+- **Per-service environment variables** — exported before the command runs.
+- **Quick actions** — open the served URL, reveal the working dir in Finder, open a Terminal there, or copy the command.
+- **Main window** — a resizable window with a grouped sidebar + detail pane (controls, quick actions, env vars, large ANSI-cleaned log view). Open it from the dropdown's window button; close it any time without stopping services.
 - **Keep awake (lid closed)** — a footer toggle that prevents the Mac from sleeping when you close the lid, so your services keep running. See below.
 - **Launch at Login** and an **About** panel in the ⚙︎ settings menu.
+
+See [ROADMAP.md](ROADMAP.md) for what's planned next.
 
 ## Keep awake
 
@@ -34,19 +40,22 @@ Single-target SwiftUI app using `MenuBarExtra` (macOS 13+).
 
 | File | Role |
 | --- | --- |
-| `Switchboard/ServiceConfig.swift` | Codable config model (name, command, dir, port, icon, color, `isOneShot`). Ships with default services + available icons/colors. |
+| `Switchboard/ServiceConfig.swift` | Codable config model (name, command, dir, port, icon, color, `isOneShot`, `group`, `environment`). Ships with default services + available icons/colors. |
 | `Switchboard/ConfigManager.swift` | Loads/saves configs as JSON in `~/Library/Application Support/Switchboard/services.json`. Seeds defaults on first launch. |
-| `Switchboard/ServiceProcess.swift` | Wraps a `Foundation.Process`. Owns status, logs, uptime, auto-restart logic, port/stale conflict recovery, and process-tree kill. |
-| `Switchboard/ServiceManager.swift` | `@ObservableObject` that owns the config list + `ServiceProcess` instances. Handles CRUD and bulk actions (start all / stop all / restart all). |
+| `Switchboard/ServiceProcess.swift` | Wraps a `Foundation.Process`. Owns status, logs, uptime, auto-restart logic, port/stale conflict recovery, process-tree kill, env-var injection, and quick actions (open URL/Finder/Terminal). |
+| `Switchboard/ServiceManager.swift` | `@ObservableObject` that owns the config list + `ServiceProcess` instances. Handles CRUD, bulk actions (start/stop/restart all), and per-group start/stop. |
 | `Switchboard/SleepPreventer.swift` | The keep-awake toggle: reads live `pmset` state, installs the scoped sudoers rule on first use, and applies changes silently thereafter. |
 
 Views live under `Switchboard/Views/`:
 
 | View | Role |
 | --- | --- |
-| `ServiceListView` | Main menu-bar panel. Header counter, scrollable service rows, footer with Start All / Stop All / Add / keep-awake / settings / Quit. |
+| `ServiceListView` | Menu-bar dropdown panel. Header counter, scrollable service rows, footer with Start All / Stop All / Add / open-window / keep-awake / settings / Quit. |
 | `ServiceRowView` | One row. Status dot + name + status line, inline start/stop/restart buttons, expandable log panel, context menu (right-click) for edit/delete. |
-| `ServiceFormView` | Add / edit form. Icon picker, color picker, folder picker, one-time-command toggle, live preview. |
+| `ServiceFormView` | Add / edit form. Group, env vars, icon/color/folder pickers, one-time-command toggle, live preview. |
+| `MainWindowView` | The full window: grouped sidebar (per-group start/stop) + detail pane, add/edit sheet. |
+| `ServiceDetailView` | Detail pane for one service: status + controls, quick actions, configuration, env vars, large live log view. |
+| `AboutView` | Custom About window opened from the ⚙︎ menu. |
 
 Config is stored at `~/Library/Application Support/Switchboard/services.json` — deleting this file resets the app to the built-in defaults next launch.
 

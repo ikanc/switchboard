@@ -1,5 +1,13 @@
 import SwiftUI
 
+// A single environment variable applied to a service's process. Ordered (array,
+// not dict) so the editor has stable rows.
+struct EnvVar: Identifiable, Codable, Equatable {
+    var id: String = UUID().uuidString
+    var key: String = ""
+    var value: String = ""
+}
+
 struct ServiceConfig: Identifiable, Codable, Equatable {
     var id: String
     var name: String
@@ -9,8 +17,12 @@ struct ServiceConfig: Identifiable, Codable, Equatable {
     var colorName: String
     var port: Int?
     var isOneShot: Bool
+    // Optional project/profile this service belongs to. nil = "Ungrouped".
+    var group: String?
+    // Per-service environment variables, exported before the command runs.
+    var environment: [EnvVar]
 
-    init(id: String = UUID().uuidString, name: String, command: String, workingDirectory: String, icon: String = "terminal", colorName: String = "blue", port: Int? = nil, isOneShot: Bool = false) {
+    init(id: String = UUID().uuidString, name: String, command: String, workingDirectory: String, icon: String = "terminal", colorName: String = "blue", port: Int? = nil, isOneShot: Bool = false, group: String? = nil, environment: [EnvVar] = []) {
         self.id = id
         self.name = name
         self.command = command
@@ -19,13 +31,15 @@ struct ServiceConfig: Identifiable, Codable, Equatable {
         self.colorName = colorName
         self.port = port
         self.isOneShot = isOneShot
+        self.group = group
+        self.environment = environment
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, command, workingDirectory, icon, colorName, port, isOneShot
+        case id, name, command, workingDirectory, icon, colorName, port, isOneShot, group, environment
     }
 
-    // Custom decoder so existing saved configs (without `isOneShot`) still load.
+    // Custom decoder so configs saved before newer fields existed still load.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
@@ -36,6 +50,8 @@ struct ServiceConfig: Identifiable, Codable, Equatable {
         colorName = try c.decode(String.self, forKey: .colorName)
         port = try c.decodeIfPresent(Int.self, forKey: .port)
         isOneShot = try c.decodeIfPresent(Bool.self, forKey: .isOneShot) ?? false
+        group = try c.decodeIfPresent(String.self, forKey: .group)
+        environment = try c.decodeIfPresent([EnvVar].self, forKey: .environment) ?? []
     }
 
     var expandedPath: String {

@@ -45,6 +45,7 @@ struct ServiceListView: View {
     @State private var showDeleteConfirm = false
     @State private var launchAtLoginEnabled: Bool = LaunchAtLogin.isEnabled
     @ObservedObject private var sleepPreventer = SleepPreventer.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 0) {
@@ -287,6 +288,18 @@ struct ServiceListView: View {
                     .font(.caption.weight(.bold))
             }
             .buttonStyle(.bordered)
+
+            // Open the full window for in-depth control. Closing it later leaves
+            // services running (the menu-bar dropdown stays the quick surface).
+            Button {
+                openWindow(id: "dashboard")
+                NSApp.activate(ignoringOtherApps: true)
+            } label: {
+                Image(systemName: "macwindow")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .help("Open the main window")
 
             // Keep-awake toggle. Highlighted (filled cup + tint) while active so
             // it's an obvious reminder the lid-close sleep override is on.

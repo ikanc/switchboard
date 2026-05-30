@@ -145,4 +145,41 @@ class ServiceManager: ObservableObject {
             service.restart()
         }
     }
+
+    // MARK: - Groups / Profiles
+
+    /// Distinct group names in first-seen order. `nil` (ungrouped) is appended
+    /// last when ungrouped services exist.
+    var groupNames: [String?] {
+        var seen = Set<String>()
+        var ordered: [String?] = []
+        var hasUngrouped = false
+        for service in services {
+            if let group = service.config.group, !group.isEmpty {
+                if seen.insert(group).inserted { ordered.append(group) }
+            } else {
+                hasUngrouped = true
+            }
+        }
+        if hasUngrouped { ordered.append(nil) }
+        return ordered
+    }
+
+    func services(in group: String?) -> [ServiceProcess] {
+        services.filter { (($0.config.group?.isEmpty == false) ? $0.config.group : nil) == group }
+    }
+
+    /// Start every long-running service in a group (skips one-shots + already running).
+    func startGroup(_ group: String?) {
+        for service in services(in: group) where !service.config.isOneShot && service.status != .running && service.status != .starting {
+            service.start()
+        }
+    }
+
+    /// Stop every running service in a group.
+    func stopGroup(_ group: String?) {
+        for service in services(in: group) {
+            service.stop()
+        }
+    }
 }

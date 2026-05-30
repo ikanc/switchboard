@@ -15,5 +15,13 @@ struct SwitchboardApp: App {
             Image(systemName: icon)
         }
         .menuBarExtraStyle(.window)
+
+        // Full window for in-depth control. Shares the same ServiceManager, so
+        // the dropdown and window stay in sync. The app is an LSUIElement
+        // accessory, so closing this window leaves every service running.
+        Window("Switchboard", id: "dashboard") {
+            MainWindowView(manager: manager)
+        }
+        .defaultSize(width: 920, height: 620)
     }
 }

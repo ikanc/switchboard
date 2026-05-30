@@ -19,6 +19,8 @@ struct ServiceFormView: View {
     @State private var selectedIcon: String = "terminal.fill"
     @State private var selectedColor: String = "blue"
     @State private var isOneShot: Bool = false
+    @State private var group: String = ""
+    @State private var envVars: [EnvVar] = []
 
     private var isEditing: Bool {
         if case .edit = mode { return true }
@@ -92,6 +94,17 @@ struct ServiceFormView: View {
                         }
                     }
 
+                    // Group / project
+                    fieldSection("Group (optional)") {
+                        TextField("e.g. My App, Side Project", text: $group)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    // Environment variables
+                    fieldSection("Environment Variables (optional)") {
+                        envEditor
+                    }
+
                     // One-shot toggle
                     fieldSection("Type") {
                         Toggle(isOn: $isOneShot) {
@@ -159,6 +172,8 @@ struct ServiceFormView: View {
                 selectedColor = config.colorName
                 portString = config.port.map { String($0) } ?? ""
                 isOneShot = config.isOneShot
+                group = config.group ?? ""
+                envVars = config.environment
             } else if let source = prefill {
                 // Duplicate: pre-fill all fields; save() will mint a new UUID.
                 name = source.name + " (copy)"
@@ -168,9 +183,40 @@ struct ServiceFormView: View {
                 selectedColor = source.colorName
                 portString = source.port.map { String($0) } ?? ""
                 isOneShot = source.isOneShot
+                group = source.group ?? ""
+                envVars = source.environment
             } else {
                 isOneShot = defaultIsOneShot
             }
+        }
+    }
+
+    private var envEditor: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach($envVars) { $env in
+                HStack(spacing: 6) {
+                    TextField("KEY", text: $env.key)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.caption, design: .monospaced))
+                    Text("=").foregroundStyle(.tertiary)
+                    TextField("value", text: $env.value)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.caption, design: .monospaced))
+                    Button {
+                        envVars.removeAll { $0.id == env.id }
+                    } label: {
+                        Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Button {
+                envVars.append(EnvVar())
+            } label: {
+                Label("Add variable", systemImage: "plus").font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
     }
 
@@ -289,6 +335,11 @@ struct ServiceFormView: View {
         config.colorName = selectedColor
         config.port = isOneShot ? nil : Int(portString)
         config.isOneShot = isOneShot
+        let trimmedGroup = group.trimmingCharacters(in: .whitespaces)
+        config.group = trimmedGroup.isEmpty ? nil : trimmedGroup
+        config.environment = envVars
+            .map { EnvVar(id: $0.id, key: $0.key.trimmingCharacters(in: .whitespaces), value: $0.value) }
+            .filter { !$0.key.isEmpty }
         onSave(config)
     }
 }
