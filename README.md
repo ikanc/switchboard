@@ -130,6 +130,19 @@ Click **+** in the footer (or right-click a row → Edit).
 - **Port** (services only, optional) — if set, `EADDRINUSE` errors trigger `lsof -ti tcp:<port> | xargs kill -9` followed by a retry.
 - **Icon / color** — purely cosmetic.
 
+## Releasing (maintainers)
+
+Distribution is via a Homebrew tap ([ikanc/homebrew-tap](https://github.com/ikanc/homebrew-tap)).
+Cutting a release is one command:
+
+```bash
+./publish.sh minor   # bump MARKETING_VERSION (or edit project.yml)
+./release.sh         # build → zip → GitHub Release → bump + push the cask
+```
+
+`release.sh` expects the tap checked out at `~/Code/Mac/homebrew-tap`
+(override with `SWITCHBOARD_TAP_DIR`).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

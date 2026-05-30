@@ -1,11 +1,14 @@
 #!/bin/zsh
-# Build a Release .app, zip it, and publish it as a GitHub Release so the
-# Homebrew cask can download it.
+# Cut a full release in one command:
+#   1. build a Release .app and zip it
+#   2. publish it as a GitHub Release (tag vX.Y.Z)
+#   3. bump the Homebrew cask (version + sha256) and push the tap
 #
 #   ./release.sh
 #
-# Reads the version from project.yml, tags it (vX.Y.Z), uploads the zip, and
-# prints the version + sha256 + url to paste into the Homebrew cask.
+# Version comes from project.yml's MARKETING_VERSION — bump that (or run
+# `./publish.sh minor`) before releasing. The tap is expected at
+# ~/Code/Mac/homebrew-tap (override with SWITCHBOARD_TAP_DIR).
 #
 # Note: the app is currently unsigned/un-notarized. Homebrew quarantines
 # unsigned casks, so first launch needs a right-click → Open (or
@@ -21,6 +24,9 @@ SCHEME="$APP_NAME"
 PROJECT="$APP_NAME.xcodeproj"
 BUILD_DIR="$(pwd)/build"
 DIST_DIR="$(pwd)/dist"
+# Local checkout of the Homebrew tap (github.com/ikanc/homebrew-tap). Override
+# with SWITCHBOARD_TAP_DIR if it lives elsewhere.
+TAP_DIR="${SWITCHBOARD_TAP_DIR:-$HOME/Code/Mac/homebrew-tap}"
 
 VERSION=$(grep -E '^[[:space:]]+MARKETING_VERSION:' project.yml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
 TAG="v$VERSION"
@@ -56,9 +62,26 @@ else
         --generate-notes
 fi
 
+# --- update + push the Homebrew cask -----------------------------------------
+CASK="$TAP_DIR/Casks/switchboard.rb"
+if [[ -f "$CASK" ]]; then
+    echo "→ Updating Homebrew cask..."
+    /usr/bin/sed -i '' -E "s/^  version \".*\"/  version \"$VERSION\"/" "$CASK"
+    /usr/bin/sed -i '' -E "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" "$CASK"
+    if git -C "$TAP_DIR" diff --quiet -- Casks/switchboard.rb; then
+        echo "  cask already at $VERSION — nothing to push"
+    else
+        git -C "$TAP_DIR" add Casks/switchboard.rb
+        git -C "$TAP_DIR" commit -q -m "switchboard $VERSION"
+        git -C "$TAP_DIR" push -q origin main
+        echo "  cask bumped to $VERSION + pushed ✓"
+    fi
+else
+    echo "⚠ Tap cask not found at $CASK — skipping cask update."
+    echo "  Clone github.com/ikanc/homebrew-tap there (or set SWITCHBOARD_TAP_DIR),"
+    echo "  or update it manually: version \"$VERSION\" / sha256 \"$SHA\""
+fi
+
 echo ""
 echo "✓ Released $APP_NAME $VERSION"
-echo "  Update the Homebrew cask with:"
-echo "    version \"$VERSION\""
-echo "    sha256 \"$SHA\""
-echo "    url    https://github.com/$REPO/releases/download/$TAG/$APP_NAME-$VERSION.zip"
+echo "  Install: brew install --cask ikanc/tap/switchboard"
