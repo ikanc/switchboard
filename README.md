@@ -4,6 +4,25 @@ A tiny macOS menu-bar app that launches and manages the long-running processes y
 
 It lives as a ⚡ bolt icon in the menu bar. Click it for a quick dropdown — live status, tail logs, start / stop / restart — or open the **full window** for in-depth control: a project sidebar and a per-service detail pane with quick actions, environment variables, and a large live log view. (Like NordVPN: dropdown for quick actions, window for the deep stuff. Closing the window leaves every service running.)
 
+## Install
+
+```bash
+brew install --cask ikanc/tap/switchboard
+```
+
+The app is currently **unsigned** (no Apple Developer ID yet), so macOS Gatekeeper
+quarantines it. On first launch:
+
+- **Right-click** Switchboard.app in `/Applications` → **Open** → **Open**, or
+- `xattr -dr com.apple.quarantine /Applications/Switchboard.app`
+
+…then it launches normally every time after. (Once the app is notarized this step
+goes away.)
+
+To update: `brew upgrade --cask switchboard`. To remove: `brew uninstall --cask switchboard`.
+
+Prefer to build from source? See [Setup](#setup).
+
 ## What it does
 
 - **Runs long-running services** (dev servers). Each has a name, command, working directory, optional port, icon, and color.
