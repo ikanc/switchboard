@@ -1,0 +1,14 @@
+# Generated Xcode project (regenerate with `xcodegen generate` / ./setup.sh)
+*.xcodeproj
+
+# Build output
+build/
+DerivedData/
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# macOS
+.DS_Store
