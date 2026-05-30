@@ -28,6 +28,14 @@ DIST_DIR="$(pwd)/dist"
 # with SWITCHBOARD_TAP_DIR if it lives elsewhere.
 TAP_DIR="${SWITCHBOARD_TAP_DIR:-$HOME/Code/Mac/homebrew-tap}"
 
+# Code signing + notarization (optional — the script falls back to an unsigned
+# build if no Developer ID cert is found). Auto-detects a "Developer ID
+# Application" cert; override the identity with SWITCHBOARD_SIGN_IDENTITY.
+# Notary creds come from a keychain profile created once with
+# `xcrun notarytool store-credentials` (see README → Releasing).
+SIGN_IDENTITY="${SWITCHBOARD_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)}"
+NOTARY_PROFILE="${SWITCHBOARD_NOTARY_PROFILE:-switchboard-notary}"
+
 VERSION=$(grep -E '^[[:space:]]+MARKETING_VERSION:' project.yml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
 TAG="v$VERSION"
 APP="$BUILD_DIR/Build/Products/Release/$APP_NAME.app"
@@ -44,11 +52,34 @@ xcodebuild \
 
 [[ -d "$APP" ]] || { echo "✗ Build product not found at $APP"; exit 1; }
 
+# --- code sign (Developer ID + hardened runtime) -----------------------------
+if [[ -n "$SIGN_IDENTITY" ]]; then
+    echo "→ Signing ($SIGN_IDENTITY)..."
+    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
+    codesign --verify --strict --verbose=2 "$APP"
+else
+    echo "⚠ No Developer ID Application cert found — building UNSIGNED."
+    echo "  Gatekeeper will nag on every launch. See README → Releasing to set it up."
+fi
+
 echo "→ Packaging $ZIP..."
 mkdir -p "$DIST_DIR"
 rm -f "$ZIP"
 # ditto preserves the bundle structure + resource forks (a plain `zip` can corrupt .app).
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+
+# --- notarize + staple -------------------------------------------------------
+# Submit the zip to Apple, then staple the ticket onto the .app so Gatekeeper
+# passes even offline. Re-zip the stapled app as the distribution artifact.
+if [[ -n "$SIGN_IDENTITY" ]]; then
+    echo "→ Notarizing (this can take a few minutes)..."
+    xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+    echo "→ Stapling..."
+    xcrun stapler staple "$APP"
+    rm -f "$ZIP"
+    ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+    echo "  notarized + stapled ✓"
+fi
 
 SHA=$(shasum -a 256 "$ZIP" | awk '{print $1}')
 

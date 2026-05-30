@@ -137,11 +137,36 @@ Cutting a release is one command:
 
 ```bash
 ./publish.sh minor   # bump MARKETING_VERSION (or edit project.yml)
-./release.sh         # build → zip → GitHub Release → bump + push the cask
+./release.sh         # build → sign → notarize → GitHub Release → bump + push the cask
 ```
 
 `release.sh` expects the tap checked out at `~/Code/Mac/homebrew-tap`
 (override with `SWITCHBOARD_TAP_DIR`).
+
+### Signing & notarization (one-time setup)
+
+Without this, releases are unsigned and Gatekeeper nags on every install/update.
+With it, installs and updates launch cleanly. `release.sh` auto-detects the
+Developer ID cert; if none is found it builds unsigned and tells you.
+
+1. **Create a Developer ID Application certificate** (needs an Apple Developer
+   account; this is *not* an App Store cert). Easiest via Xcode:
+   *Settings → Accounts → select your team → Manage Certificates → ＋ → Developer
+   ID Application*. Confirm it landed: `security find-identity -v -p codesigning`
+   should list `Developer ID Application: …`.
+
+2. **Store notary credentials once** (uses an [app-specific password](https://support.apple.com/en-us/102654)):
+
+   ```bash
+   xcrun notarytool store-credentials switchboard-notary \
+     --apple-id "you@example.com" \
+     --team-id  "<YOUR_TEAM_ID>" \
+     --password "<app-specific-password>"
+   ```
+
+That's it — `./release.sh` now signs with hardened runtime, notarizes, staples,
+and ships. Override the identity/profile with `SWITCHBOARD_SIGN_IDENTITY` /
+`SWITCHBOARD_NOTARY_PROFILE` if needed.
 
 ## License
 
