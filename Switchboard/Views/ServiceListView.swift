@@ -292,8 +292,12 @@ struct ServiceListView: View {
             // Open the full window for in-depth control. Closing it later leaves
             // services running (the menu-bar dropdown stays the quick surface).
             Button {
+                // The dropdown is the key window while its own button is clicked;
+                // capture it first so we can dismiss it as the window opens.
+                let dropdown = NSApp.keyWindow
                 openWindow(id: "dashboard")
                 NSApp.activate(ignoringOtherApps: true)
+                dropdown?.orderOut(nil)
             } label: {
                 Image(systemName: "macwindow")
                     .font(.caption)
